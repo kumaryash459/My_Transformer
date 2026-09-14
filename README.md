@@ -244,7 +244,7 @@ The original Transformer uses an encoder-decoder structure:
 
 The original paper uses six encoder and six decoder layers in its base Transformer configuration. This project uses a smaller configuration of **4 encoder layers and 4 decoder layers** to make training feasible on a consumer GPU.
 
-![Transformer Architecture](docs/images/transformer-architecture.svg)
+![Transformer Architecture](docs/images/transformer.png)
 ---
 
 # Complete Transformer Pipeline
