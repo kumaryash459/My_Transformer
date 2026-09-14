@@ -1,0 +1,7 @@
+torch==2.14.0
+datasets
+numpy
+tqdm
+scikit-learn
+sacrebleu
+matplotlib

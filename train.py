@@ -1,3 +1,4 @@
+
 import torch
 from torch.utils.data import DataLoader
 
@@ -25,24 +26,29 @@ from training.checkpoint import save_checkpoint
 
 MAX_SAMPLES = 10_000
 
+MAX_LENGTH = 64
+
 BATCH_SIZE = 16
 
-NUM_EPOCHS = 10
+NUM_EPOCHS = 15
 
-# Smoke test:
-# Only these many batches will be processed.
+# Process the complete dataset.
 MAX_TRAIN_BATCHES = None
 MAX_VAL_BATCHES = None
 
-# For smoke test we use a smaller warmup.
-# Original Transformer training can use 4000.
-WARMUP_STEPS = 500
+# Noam warmup.
+WARMUP_STEPS = 2000
 
 GRADIENT_ACCUMULATION_STEPS = 1
 
 GRAD_CLIP = 1.0
 
-USE_AMP = True
+# AMP disabled because it previously produced NaNs.
+USE_AMP = False
+
+# Word-level vocabulary.
+# Use every token appearing in the training data.
+MIN_FREQUENCY = 1
 
 CHECKPOINT_DIR = "checkpoints"
 
@@ -80,7 +86,7 @@ print("=" * 60)
 data = load_translation_data(
     validation_ratio=0.1,
     max_samples=MAX_SAMPLES,
-    max_length=128
+    max_length=MAX_LENGTH
 )
 
 train_source = data["train"]["source"]
@@ -104,16 +110,15 @@ print("BUILDING VOCABULARIES")
 print("=" * 60)
 
 source_vocab = Vocabulary(
-    min_frequency=2
+    min_frequency=MIN_FREQUENCY
 )
 
 target_vocab = Vocabulary(
-    min_frequency=2
+    min_frequency=MIN_FREQUENCY
 )
 
-# IMPORTANT:
-# Vocabulary is built only from training data.
-# This avoids validation-data leakage.
+# Vocabulary is built ONLY from training data.
+# This prevents validation-data leakage.
 
 source_vocab.build(train_source)
 target_vocab.build(train_target)
@@ -125,20 +130,36 @@ print()
 
 print("Source special tokens:")
 print({
-    "PAD": source_vocab.token_to_id[source_vocab.pad_token],
-    "BOS": source_vocab.token_to_id[source_vocab.bos_token],
-    "EOS": source_vocab.token_to_id[source_vocab.eos_token],
-    "UNK": source_vocab.token_to_id[source_vocab.unk_token]
+    "PAD": source_vocab.token_to_id[
+        source_vocab.pad_token
+    ],
+    "BOS": source_vocab.token_to_id[
+        source_vocab.bos_token
+    ],
+    "EOS": source_vocab.token_to_id[
+        source_vocab.eos_token
+    ],
+    "UNK": source_vocab.token_to_id[
+        source_vocab.unk_token
+    ]
 })
 
 print()
 
 print("Target special tokens:")
 print({
-    "PAD": target_vocab.token_to_id[target_vocab.pad_token],
-    "BOS": target_vocab.token_to_id[target_vocab.bos_token],
-    "EOS": target_vocab.token_to_id[target_vocab.eos_token],
-    "UNK": target_vocab.token_to_id[target_vocab.unk_token]
+    "PAD": target_vocab.token_to_id[
+        target_vocab.pad_token
+    ],
+    "BOS": target_vocab.token_to_id[
+        target_vocab.bos_token
+    ],
+    "EOS": target_vocab.token_to_id[
+        target_vocab.eos_token
+    ],
+    "UNK": target_vocab.token_to_id[
+        target_vocab.unk_token
+    ]
 })
 
 print()
@@ -211,7 +232,7 @@ config = TransformerConfig(
     tgt_vocab_size=len(target_vocab),
 
     # Sequence configuration
-    max_seq_length=128,
+    max_seq_length=MAX_LENGTH,
 
     # Transformer architecture
     d_model=256,
@@ -224,24 +245,24 @@ config = TransformerConfig(
 
     dropout=0.1,
 
-    # SOURCE special tokens
+    # SOURCE PAD token
     pad_token_id=source_vocab.token_to_id[
         source_vocab.pad_token
     ],
 
-    # IMPORTANT:
-    # Decoder uses TARGET vocabulary.
+    # TARGET BOS token
     bos_token_id=target_vocab.token_to_id[
         target_vocab.bos_token
     ],
 
+    # TARGET EOS token
     eos_token_id=target_vocab.token_to_id[
         target_vocab.eos_token
     ],
 
     batch_size=BATCH_SIZE,
 
-    learning_rate=3e-4,
+    learning_rate=2e-4,
 
     weight_decay=0.01,
 
@@ -288,7 +309,7 @@ loss_fn = LabelSmoothedCrossEntropyLoss(
         target_vocab.pad_token
     ],
 
-    label_smoothing=0.1
+    label_smoothing=0.0
 )
 
 
@@ -390,8 +411,8 @@ for epoch in range(1, NUM_EPOCHS + 1):
     current_lr = scheduler.get_last_lr()[0]
 
     print()
-    print(f"Train Loss : {train_loss:.4f}")
-    print(f"Val Loss   : {val_loss:.4f}")
+    print(f"Train Loss   : {train_loss:.4f}")
+    print(f"Val Loss     : {val_loss:.4f}")
     print(f"Learning Rate: {current_lr:.8f}")
 
     # --------------------------------------------------------
@@ -513,3 +534,4 @@ print(
 print(
     f"Best checkpoint: {BEST_CHECKPOINT}"
 )
+
